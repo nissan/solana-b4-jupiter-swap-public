@@ -1,0 +1,51 @@
+{
+  "swapType": "aggregator",
+  "inAmount": "100000000",
+  "outAmount": "6870506",
+  "otherAmountThreshold": "6836153",
+  "swapMode": "ExactIn",
+  "slippageBps": 50,
+  "priceImpactPct": "-0.0006215005953258027",
+  "routePlan": [
+    {
+      "percent": 100,
+      "bps": 10000,
+      "usdValue": 6.86530703704152,
+      "swapInfo": {
+        "ammKey": "8FnX3xo2yYw3EUE6w3nQA4GfXGS9wpK6oj3veJpbFzLo",
+        "label": "BisonFi",
+        "inputMint": "So11111111111111111111111111111111111111112",
+        "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "inAmount": "100000000",
+        "outAmount": "6871880"
+      }
+    }
+  ],
+  "feeMint": "So11111111111111111111111111111111111111112",
+  "feeBps": 2,
+  "platformFee": {
+    "feeBps": 2,
+    "feeMint": "So11111111111111111111111111111111111111112"
+  },
+  "signatureFeeLamports": 0,
+  "signatureFeePayer": null,
+  "prioritizationFeeLamports": 0,
+  "prioritizationFeePayer": null,
+  "rentFeeLamports": 0,
+  "rentFeePayer": null,
+  "transaction": null,
+  "gasless": false,
+  "jitOptimized": false,
+  "taker": null,
+  "inputMint": "So11111111111111111111111111111111111111112",
+  "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "router": "metis",
+  "guaranteedPrice": false,
+  "requestId": "01a1fbc4-cddf-770d-84e1-c084b94179c6",
+  "inUsdValue": 6.869576482915288,
+  "outUsdValue": 6.86530703704152,
+  "swapUsdValue": 6.86530703704152,
+  "priceImpact": -0.06215005953258027,
+  "mode": "manual",
+  "totalTime": 213
+}

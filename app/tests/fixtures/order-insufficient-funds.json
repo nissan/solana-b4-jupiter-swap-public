@@ -1,0 +1,54 @@
+{
+  "swapMode": "ExactIn",
+  "inputMint": "So11111111111111111111111111111111111111112",
+  "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "inAmount": "100000000",
+  "outAmount": "6871570",
+  "otherAmountThreshold": "6837212",
+  "slippageBps": 50,
+  "priceImpactPct": "-0.0004667319766291247",
+  "priceImpact": -0.04667319766291247,
+  "routePlan": [
+    {
+      "percent": 100,
+      "bps": 10000,
+      "usdValue": 6.866370231904812,
+      "swapInfo": {
+        "ammKey": "proVF4pMXVaYqmy4NjniPh4pqKNfMmsihgd4wdkCX3u",
+        "label": "OKX DEX Router",
+        "inputMint": "So11111111111111111111111111111111111111112",
+        "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "inAmount": "100000000",
+        "outAmount": "6871570"
+      }
+    }
+  ],
+  "feeMint": "So11111111111111111111111111111111111111112",
+  "feeBps": 2,
+  "platformFee": {
+    "feeBps": 2,
+    "feeMint": "So11111111111111111111111111111111111111112"
+  },
+  "signatureFeeLamports": 0,
+  "signatureFeePayer": null,
+  "prioritizationFeeLamports": 0,
+  "prioritizationFeePayer": null,
+  "rentFeeLamports": 0,
+  "rentFeePayer": null,
+  "swapType": "aggregator",
+  "router": "okx",
+  "guaranteedPrice": false,
+  "transaction": "",
+  "gasless": false,
+  "jitOptimized": false,
+  "requestId": "01a1fbc4-d3ee-7019-9dba-019ab48958da",
+  "taker": "2za3S3W1c8NDvXs2zGpzgG9FZgHqbbsHxcZyfMgvn6t3",
+  "errorCode": 1,
+  "errorMessage": "Insufficient funds",
+  "inUsdValue": 6.869576482915288,
+  "outUsdValue": 6.866370231904812,
+  "swapUsdValue": 6.866370231904812,
+  "mode": "manual",
+  "error": "Insufficient funds",
+  "totalTime": 244
+}

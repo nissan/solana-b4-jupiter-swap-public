@@ -1,0 +1,13 @@
+# Secret-scan configuration. The default rules stay on.
+[extend]
+useDefault = true
+
+# The captured Jupiter responses name the liquidity pool each route step used
+# as "ammKey". That is a public on-chain address; the generic-api-key rule
+# flags it because of the word "Key". Only a line that is exactly that field
+# with a Solana address is let through. (A path condition was tried as well and
+# removed: with it, gitleaks 8.30.1 let any finding in those files through.)
+[[allowlists]]
+description = "ammKey in a Jupiter route is a public pool address"
+regexTarget = "line"
+regexes = ['''^\s*"ammKey":\s*"[1-9A-HJ-NP-Za-km-z]{32,44}",?\s*$''']

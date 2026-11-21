@@ -1,0 +1,64 @@
+{
+  "swapType": "aggregator",
+  "inAmount": "250000000",
+  "outAmount": "1095558459",
+  "otherAmountThreshold": "1095558459",
+  "swapMode": "ExactIn",
+  "slippageBps": 0,
+  "priceImpactPct": "-0.00009662601308633583",
+  "routePlan": [
+    {
+      "percent": 2.47,
+      "bps": 247,
+      "usdValue": 6.1703273316013965,
+      "swapInfo": {
+        "ammKey": "4Ui9QdDNuUaAGqCPcDSp191QrixLzQiLxJ1Gnqvz3szP",
+        "label": "Whirlpool",
+        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "outputMint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+        "inAmount": "6177487",
+        "outAmount": "27070839"
+      }
+    },
+    {
+      "percent": 97.53,
+      "bps": 9753,
+      "usdValue": 243.64049581015553,
+      "swapInfo": {
+        "ammKey": "Et6HnPjetV8AzmxNAfzKJ6ax5VM82ZB7phY465Ns5iZW",
+        "label": "ZeroFi",
+        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "outputMint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+        "inAmount": "243822513",
+        "outAmount": "1068487620"
+      }
+    }
+  ],
+  "feeMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "feeBps": 0,
+  "platformFee": {
+    "feeBps": 0,
+    "feeMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  },
+  "signatureFeeLamports": 0,
+  "signatureFeePayer": null,
+  "prioritizationFeeLamports": 0,
+  "prioritizationFeePayer": null,
+  "rentFeeLamports": 0,
+  "rentFeePayer": null,
+  "transaction": null,
+  "gasless": false,
+  "jitOptimized": false,
+  "taker": null,
+  "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "outputMint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+  "router": "metis",
+  "guaranteedPrice": false,
+  "requestId": "01a1fbc4-da13-7249-9e34-29be9cdf2115",
+  "inUsdValue": 249.81082314175694,
+  "outUsdValue": 249.78668491789094,
+  "swapUsdValue": 249.81082314175694,
+  "priceImpact": -0.009662601308633582,
+  "mode": "ultra",
+  "totalTime": 670
+}

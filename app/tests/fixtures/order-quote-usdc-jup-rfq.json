@@ -1,0 +1,53 @@
+{
+  "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "outputMint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+  "inAmount": "250000000",
+  "outAmount": "1099034658",
+  "otherAmountThreshold": "1099034658",
+  "swapMode": "ExactIn",
+  "slippageBps": 0,
+  "priceImpactPct": "0.0002299557044645352",
+  "routePlan": [
+    {
+      "percent": 100,
+      "bps": 10000,
+      "usdValue": 249.80416636036398,
+      "swapInfo": {
+        "ammKey": "FkaLnX17cXZGyeu3kZGdHCNdFMJJzBrPPYVvd18B3MZp",
+        "label": "JupiterZ",
+        "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "outputMint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+        "inAmount": "250000000",
+        "outAmount": "1099034658"
+      }
+    }
+  ],
+  "feeMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "feeBps": 0,
+  "transaction": null,
+  "gasless": true,
+  "jitOptimized": false,
+  "signatureFeeLamports": 0,
+  "signatureFeePayer": null,
+  "prioritizationFeeLamports": 0,
+  "prioritizationFeePayer": null,
+  "rentFeeLamports": 0,
+  "rentFeePayer": null,
+  "requestId": "01a1fbcf-4637-740b-9e95-d3590f69379b",
+  "swapType": "rfq",
+  "router": "jupiterz",
+  "guaranteedPrice": true,
+  "quoteId": "be1f9c5d-fd40-510f-a61b-ddfd9f821d30",
+  "maker": "FkaLnX17cXZGyeu3kZGdHCNdFMJJzBrPPYVvd18B3MZp",
+  "taker": null,
+  "platformFee": {
+    "feeBps": 0,
+    "feeMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  },
+  "inUsdValue": 249.80416636036398,
+  "outUsdValue": 249.86161025341755,
+  "swapUsdValue": 249.80416636036398,
+  "priceImpact": 0.02299557044645352,
+  "mode": "manual",
+  "totalTime": 666
+}
