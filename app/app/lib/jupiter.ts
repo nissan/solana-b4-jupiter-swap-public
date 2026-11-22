@@ -28,6 +28,8 @@ export type JupiterOrder = {
   transaction: string | null;
   /** RFQ quotes only. */
   expireAt?: string | null;
+  /** The last block height at which the order's transaction can land. */
+  lastValidBlockHeight?: string;
   errorCode?: number;
   errorMessage?: string;
 };
@@ -164,7 +166,11 @@ export type SwapOutcome =
   | { kind: "expired"; signature?: string }
   | { kind: "slippage"; signature?: string }
   | { kind: "failed"; message: string; signature?: string }
-  | { kind: "unconfirmed"; signature?: string };
+  | { kind: "unconfirmed"; signature?: string }
+  /** Found on-chain after the answer was lost; the amount was not read. */
+  | { kind: "landed"; signature: string }
+  /** Not on-chain, and past the point where it could still land. */
+  | { kind: "notLanded" };
 
 // /execute codes that mean the order or its transaction ran out of time:
 // -1 cached order gone, -1004 invalid block height, -1005 blockhash expired

@@ -205,7 +205,17 @@ function OutcomePanel({
     },
     unconfirmed: {
       title: "We could not confirm the result",
-      body: "The swap was signed and sent, but the answer did not come back. It may or may not have gone through. Check before you try again.",
+      body: signature
+        ? "The swap was signed and sent, but the answer did not come back. It may or may not have gone through. Check before you try again."
+        : "The swap was signed and sent, but the answer did not come back, and it was not found on-chain yet. It may still land. Check again in a few seconds before you try again.",
+    },
+    landed: {
+      title: "The swap went through",
+      body: "Jupiter's answer was lost, but the transaction is on-chain and succeeded. Your wallet shows the amount received.",
+    },
+    notLanded: {
+      title: "The swap did not go through",
+      body: "It was not found on-chain, and it ran out of time to land. Your tokens have not moved.",
     },
   };
   const { title, body } = copy[outcome.kind];
@@ -244,7 +254,9 @@ function OutcomePanel({
           onClick={onFreshQuote}
           className="cursor-pointer rounded-lg border border-border-low px-3 py-1.5 text-xs font-medium"
         >
-          {outcome.kind === "success" ? "Swap again" : "Get a fresh quote"}
+          {outcome.kind === "success" || outcome.kind === "landed"
+            ? "Swap again"
+            : "Get a fresh quote"}
         </button>
       </div>
     </div>
@@ -274,7 +286,7 @@ export function SwapCard({
   const amount = parsed.ok ? parsed.units : null;
   const slippageBps = slippage === "auto" ? undefined : Number(slippage);
 
-  const { phase, start, checkAgain, reset } = useSwap(retryDelayMs);
+  const { phase, start, checkAgain, reset } = useSwap(client.rpc, retryDelayMs);
   const busy = phase.step !== "idle" && phase.step !== "done";
   const quote = useQuote(
     {

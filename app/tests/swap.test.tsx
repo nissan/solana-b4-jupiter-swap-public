@@ -1,8 +1,11 @@
 import {
+  AccountRole,
   address,
+  appendTransactionMessageInstruction,
   blockhash,
   compileTransaction,
   createTransactionMessage,
+  getBase58Decoder,
   getBase64EncodedWireTransaction,
   getBase64Encoder,
   getPublicKeyFromAddress,
@@ -88,6 +91,8 @@ let executeReply: (body: {
 }) => Reply;
 let orderQueries: URLSearchParams[];
 let executeBodies: { signedTransaction: string; requestId: string }[];
+/** What the Solana RPC answers, by method; unset methods fail the test. */
+let rpcReply: Record<string, (params: unknown[]) => unknown>;
 
 function respond(reply: Reply): Response {
   if (reply instanceof Error) throw reply;
@@ -103,6 +108,7 @@ beforeEach(() => {
   resetMockWallet();
   orderQueries = [];
   executeBodies = [];
+  rpcReply = {};
   orderReply = (query) => ({
     body: query.has("taker") ? signableOrder : solUsdc,
   });
@@ -111,6 +117,14 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input), "http://localhost");
+      if (url.hostname === "api.mainnet-beta.solana.com") {
+        const { id, method, params } = JSON.parse(String(init?.body));
+        const handler = rpcReply[method];
+        if (!handler) throw new Error(`Unexpected RPC call ${method}`);
+        const result = handler(params);
+        if (result instanceof Error) throw result;
+        return Response.json({ jsonrpc: "2.0", id, result });
+      }
       if (url.pathname === "/api/jupiter/order") {
         orderQueries.push(url.searchParams);
         return respond(orderReply(url.searchParams));
@@ -455,4 +469,223 @@ test("a lost answer after sending is reported as unconfirmed, then resolved by c
   expect(executeBodies[4].signedTransaction).toBe(
     executeBodies[0].signedTransaction
   );
+});
+
+// --- B4-004: a gasless swap whose answer was lost is looked for on-chain ---
+
+// On a gasless order someone else pays the fee and signs inside /execute, so
+// the wallet signs a transaction whose first (ID) signature slot is empty.
+const GAS_PAYER = "gasTzr94Pmp4Gf8vknQnqxeYxdgwFjbgdJa4msYRpnB";
+const OTHER_TX =
+  "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofM95fbxiv3Np5V3kkjRGtfo5kKTfGjVEwAQHPRk9rHQBTA3";
+
+const gaslessOrder = {
+  ...solUsdc,
+  taker: mockWalletAddress,
+  gasless: true,
+  signatureFeePayer: GAS_PAYER,
+  lastValidBlockHeight: "150",
+  transaction: getBase64EncodedWireTransaction(
+    compileTransaction(
+      pipe(
+        createTransactionMessage({ version: 0 }),
+        (message) => setTransactionMessageFeePayer(address(GAS_PAYER), message),
+        (message) =>
+          appendTransactionMessageInstruction(
+            {
+              programAddress: address("11111111111111111111111111111111"),
+              accounts: [
+                {
+                  address: address(mockWalletAddress),
+                  role: AccountRole.READONLY_SIGNER,
+                },
+              ],
+            },
+            message
+          ),
+        (message) =>
+          setTransactionMessageLifetimeUsingBlockhash(
+            {
+              blockhash: blockhash("11111111111111111111111111111111"),
+              lastValidBlockHeight: 150n,
+            },
+            message
+          )
+      )
+    )
+  ),
+} as unknown as JupiterOrder;
+
+/** The wallet's own signature on what the page sent to /execute. */
+function sentTakerSignature() {
+  const sent = getTransactionDecoder().decode(
+    getBase64Encoder().encode(executeBodies[0].signedTransaction)
+  );
+  return getBase58Decoder().decode(
+    sent.signatures[address(mockWalletAddress)]!
+  );
+}
+
+function chainTransaction(signatures: string[], err: unknown = null) {
+  return {
+    slot: 10,
+    blockTime: null,
+    meta: { err },
+    transaction: { signatures, message: {} },
+  };
+}
+
+async function loseGaslessAnswer() {
+  orderReply = (query) => ({
+    body: query.has("taker") ? gaslessOrder : solUsdc,
+  });
+  executeReply = () => new TypeError("network down");
+  await quoteAndPressSwap();
+}
+
+test("B4-004-S1: a lost gasless swap found on-chain is shown as gone through, with its transaction", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  rpcReply = {
+    getBlockHeight: () => 120,
+    getSignaturesForAddress: () => [
+      { signature: OTHER_TX, slot: 11, err: null, memo: null, blockTime: now },
+      { signature: SIGNATURE, slot: 10, err: null, memo: null, blockTime: now },
+    ],
+    getTransaction: ([signature]) =>
+      signature === SIGNATURE
+        ? chainTransaction([SIGNATURE, sentTakerSignature()])
+        : chainTransaction([OTHER_TX]),
+  };
+  await loseGaslessAnswer();
+
+  const result = within(await screen.findByRole("alert"));
+  expect(result.getByText("The swap went through")).toBeTruthy();
+  expect(
+    result.getByRole<HTMLAnchorElement>("link", { name: SIGNATURE }).href
+  ).toBe(`https://explorer.solana.com/tx/${SIGNATURE}`);
+  // It landed: nothing offers to send it again.
+  expect(result.queryByRole("button", { name: "Check again" })).toBeNull();
+  expect(result.getByRole("button", { name: "Swap again" })).toBeTruthy();
+  expect(executeBodies).toHaveLength(3);
+  expect(mockWalletBehaviour.signed).toBe(1);
+  expectNoSpinner();
+});
+
+test("B4-004-S1: a lost gasless swap that failed on-chain is shown as failed, with its transaction", async () => {
+  rpcReply = {
+    getBlockHeight: () => 120,
+    getSignaturesForAddress: () => [
+      {
+        signature: SIGNATURE,
+        slot: 10,
+        err: { InstructionError: [0, { Custom: 1 }] },
+        memo: null,
+        blockTime: null,
+      },
+    ],
+    getTransaction: () =>
+      chainTransaction([SIGNATURE, sentTakerSignature()], {
+        InstructionError: [0, { Custom: 1 }],
+      }),
+  };
+  await loseGaslessAnswer();
+
+  const result = within(await screen.findByRole("alert"));
+  expect(result.getByText("The swap failed")).toBeTruthy();
+  expect(result.getByRole("link", { name: SIGNATURE })).toBeTruthy();
+  expect(result.queryByRole("button", { name: "Check again" })).toBeNull();
+});
+
+test("B4-004-S2: not on-chain and past the last valid block height is reported as not gone through", async () => {
+  rpcReply = {
+    getBlockHeight: () => 151,
+    getSignaturesForAddress: () => [
+      { signature: OTHER_TX, slot: 9, err: null, memo: null, blockTime: 1 },
+    ],
+    getTransaction: () => chainTransaction([OTHER_TX]),
+  };
+  await loseGaslessAnswer();
+
+  const result = within(await screen.findByRole("alert"));
+  expect(result.getByText("The swap did not go through")).toBeTruthy();
+  expect(result.queryByRole("link")).toBeNull();
+  expect(result.queryByRole("button", { name: "Check again" })).toBeNull();
+  expect(
+    result.getByRole("button", { name: "Get a fresh quote" })
+  ).toBeTruthy();
+});
+
+test.each([
+  [
+    "the block height has not passed",
+    {
+      getBlockHeight: () => 150,
+      getSignaturesForAddress: () => [],
+    },
+  ],
+  [
+    "the RPC cannot be read",
+    {
+      getBlockHeight: () => 151,
+      getSignaturesForAddress: () => new TypeError("rpc down"),
+    },
+  ],
+  [
+    "one of the wallet's transactions could not be read",
+    {
+      getBlockHeight: () => 151,
+      getSignaturesForAddress: () => [
+        { signature: OTHER_TX, slot: 9, err: null, memo: null, blockTime: 1 },
+      ],
+      getTransaction: () => new TypeError("rpc down"),
+    },
+  ],
+  [
+    "the search may not reach back to the send",
+    {
+      getBlockHeight: () => 151,
+      getSignaturesForAddress: () =>
+        Array.from({ length: 20 }, () => ({
+          signature: OTHER_TX,
+          slot: 9,
+          err: null,
+          memo: null,
+          blockTime: Math.floor(Date.now() / 1000),
+        })),
+      getTransaction: () => chainTransaction([OTHER_TX]),
+    },
+  ],
+] as [string, Record<string, (params: unknown[]) => unknown>][])(
+  "B4-004-S3: stays unconfirmed with Check again when %s",
+  async (_case, replies) => {
+    rpcReply = replies;
+    await loseGaslessAnswer();
+
+    const result = within(await screen.findByRole("alert"));
+    expect(result.getByText("We could not confirm the result")).toBeTruthy();
+    expect(result.getByRole("button", { name: "Check again" })).toBeTruthy();
+    expect(result.queryByRole("link")).toBeNull();
+    expect(screen.queryByText("The quote expired")).toBeNull();
+    expect(screen.queryByText("The swap did not go through")).toBeNull();
+    expect(screen.queryByText("The swap failed")).toBeNull();
+  }
+);
+
+test("B4-004-S3: found on-chain but the RPC does not say how it ended stays unconfirmed, with the transaction", async () => {
+  rpcReply = {
+    getBlockHeight: () => 151,
+    getSignaturesForAddress: () => [
+      { signature: SIGNATURE, slot: 10, err: null, memo: null, blockTime: 1 },
+    ],
+    getTransaction: () => ({
+      ...chainTransaction([SIGNATURE, sentTakerSignature()]),
+      meta: null,
+    }),
+  };
+  await loseGaslessAnswer();
+
+  const result = within(await screen.findByRole("alert"));
+  expect(result.getByText("We could not confirm the result")).toBeTruthy();
+  expect(result.getByRole("link", { name: SIGNATURE })).toBeTruthy();
+  expect(screen.queryByText("The swap failed")).toBeNull();
 });

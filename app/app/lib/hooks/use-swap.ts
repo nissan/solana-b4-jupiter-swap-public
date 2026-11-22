@@ -22,6 +22,7 @@ import {
   type OrderRequest,
   type SwapOutcome,
 } from "../jupiter";
+import { findLanded, type LookupRpc } from "../find-landed";
 
 export type SwapPhase =
   | { step: "idle" }
@@ -41,9 +42,19 @@ type Signed = {
   transaction: string;
   /** The transaction ID, when the fee payer's signature is already present. */
   signature?: string;
+  /** The wallet's own signature, base58: always present once signed. */
+  takerSignature: string;
 };
 
-type Sent = { payload: ExecuteRequest; signature?: string };
+type Sent = {
+  payload: ExecuteRequest;
+  signature?: string;
+  taker: Address;
+  takerSignature: string;
+  /** Unix seconds, just before the first send. */
+  sentAt: number;
+  lastValidBlockHeight?: bigint;
+};
 
 const SEND_ATTEMPTS = 3;
 
@@ -68,7 +79,8 @@ async function signOrder(
   const [signed] = await signer.modifyAndSignTransactions([
     unsigned as Parameters<typeof signer.modifyAndSignTransactions>[0][number],
   ]);
-  if (!signed.signatures[taker as Address]) {
+  const own = signed.signatures[taker as Address];
+  if (!own) {
     throw new Error(
       "The wallet returned the transaction without its signature."
     );
@@ -81,14 +93,50 @@ async function signOrder(
       getTransactionEncoder().encode(signed)
     ),
     signature: first ? getBase58Decoder().decode(first) : undefined,
+    takerSignature: getBase58Decoder().decode(own),
   };
+}
+
+/**
+ * When the answer is lost and the page never had the transaction ID (a
+ * gasless order), look for the swap on-chain by the wallet's own signature.
+ */
+async function unconfirmedOutcome(
+  current: Sent,
+  rpc: LookupRpc
+): Promise<SwapOutcome> {
+  if (current.signature) {
+    return { kind: "unconfirmed", signature: current.signature };
+  }
+  const found = await findLanded(
+    rpc,
+    current.taker,
+    current.takerSignature,
+    current.sentAt,
+    current.lastValidBlockHeight
+  );
+  if (found.kind === "landed") {
+    if (found.succeeded === undefined) {
+      return { kind: "unconfirmed", signature: found.signature };
+    }
+    return found.succeeded
+      ? { kind: "landed", signature: found.signature }
+      : {
+          kind: "failed",
+          message:
+            "The transaction reached the chain but failed there, so nothing was swapped.",
+          signature: found.signature,
+        };
+  }
+  if (found.kind === "notLanded") return { kind: "notLanded" };
+  return { kind: "unconfirmed" };
 }
 
 /**
  * The swap, one step at a time: fresh order, wallet signature, Jupiter's
  * managed execution. It always ends in a named outcome.
  */
-export function useSwap(retryDelayMs = 1500) {
+export function useSwap(rpc: LookupRpc, retryDelayMs = 1500) {
   const [phase, setPhase] = useState<SwapPhase>({ step: "idle" });
   const sent = useRef<Sent | null>(null);
 
@@ -124,12 +172,10 @@ export function useSwap(retryDelayMs = 1500) {
           }
         }
       }
-      setPhase({
-        step: "done",
-        outcome: { kind: "unconfirmed", signature: current.signature },
-      });
+      const outcome = await unconfirmedOutcome(current, rpc);
+      if (sent.current === current) setPhase({ step: "done", outcome });
     },
-    [retryDelayMs]
+    [retryDelayMs, rpc]
   );
 
   const start = useCallback(
@@ -187,6 +233,12 @@ export function useSwap(retryDelayMs = 1500) {
           requestId: order.requestId,
         },
         signature: signed.signature,
+        taker: request.taker as Address,
+        takerSignature: signed.takerSignature,
+        sentAt: Math.floor(Date.now() / 1000),
+        lastValidBlockHeight: /^\d+$/.test(order.lastValidBlockHeight ?? "")
+          ? BigInt(order.lastValidBlockHeight!)
+          : undefined,
       };
       await submit(SEND_ATTEMPTS, true);
     },
