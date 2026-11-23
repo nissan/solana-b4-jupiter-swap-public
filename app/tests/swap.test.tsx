@@ -635,7 +635,13 @@ test.each([
     {
       getBlockHeight: () => 151,
       getSignaturesForAddress: () => [
-        { signature: OTHER_TX, slot: 9, err: null, memo: null, blockTime: 1 },
+        {
+          signature: OTHER_TX,
+          slot: 9,
+          err: null,
+          memo: null,
+          blockTime: Math.floor(Date.now() / 1000),
+        },
       ],
       getTransaction: () => new TypeError("rpc down"),
     },
@@ -675,7 +681,13 @@ test("B4-004-S3: found on-chain but the RPC does not say how it ended stays unco
   rpcReply = {
     getBlockHeight: () => 151,
     getSignaturesForAddress: () => [
-      { signature: SIGNATURE, slot: 10, err: null, memo: null, blockTime: 1 },
+      {
+        signature: SIGNATURE,
+        slot: 10,
+        err: null,
+        memo: null,
+        blockTime: Math.floor(Date.now() / 1000),
+      },
     ],
     getTransaction: () => ({
       ...chainTransaction([SIGNATURE, sentTakerSignature()]),
@@ -688,4 +700,111 @@ test("B4-004-S3: found on-chain but the RPC does not say how it ended stays unco
   expect(result.getByText("We could not confirm the result")).toBeTruthy();
   expect(result.getByRole("link", { name: SIGNATURE })).toBeTruthy();
   expect(screen.queryByText("The swap failed")).toBeNull();
+});
+
+// --- B4-005: the search pages back to the send time ---
+
+type SignaturesConfig = { before?: string; limit?: number };
+
+/** A full page of the wallet's transactions, all made after the swap was sent. */
+function newerPage() {
+  const now = Math.floor(Date.now() / 1000);
+  return Array.from({ length: 20 }, () => ({
+    signature: OTHER_TX,
+    slot: 11,
+    err: null,
+    memo: null,
+    blockTime: now,
+  }));
+}
+
+test("B4-005-S1: a swap pushed off the first page by 20 newer transactions is found on the next page", async () => {
+  const pages: SignaturesConfig[] = [];
+  rpcReply = {
+    getBlockHeight: () => 120,
+    getSignaturesForAddress: ([, config]) => {
+      pages.push(config as SignaturesConfig);
+      return (config as SignaturesConfig).before
+        ? [
+            {
+              signature: SIGNATURE,
+              slot: 10,
+              err: null,
+              memo: null,
+              blockTime: Math.floor(Date.now() / 1000),
+            },
+          ]
+        : newerPage();
+    },
+    getTransaction: ([signature]) =>
+      signature === SIGNATURE
+        ? chainTransaction([SIGNATURE, sentTakerSignature()])
+        : chainTransaction([OTHER_TX]),
+  };
+  await loseGaslessAnswer();
+
+  const result = within(await screen.findByRole("alert"));
+  expect(result.getByText("The swap went through")).toBeTruthy();
+  expect(result.getByRole("link", { name: SIGNATURE })).toBeTruthy();
+  // The second page starts after the last transaction of the first.
+  expect(pages.map((page) => page.before)).toEqual([undefined, OTHER_TX]);
+});
+
+test("B4-005-S2: paging that reaches a transaction older than the send without a match, past the block height, is not gone through", async () => {
+  let read = 0;
+  let listed = 0;
+  rpcReply = {
+    getBlockHeight: () => 151,
+    getSignaturesForAddress: ([, config]) => {
+      listed += 1;
+      return (config as SignaturesConfig).before
+        ? [
+            {
+              signature: SIGNATURE,
+              slot: 1,
+              err: null,
+              memo: null,
+              blockTime: 1,
+            },
+            {
+              signature: OTHER_TX,
+              slot: 1,
+              err: null,
+              memo: null,
+              blockTime: 1,
+            },
+          ]
+        : newerPage();
+    },
+    getTransaction: () => {
+      read += 1;
+      return chainTransaction([OTHER_TX]);
+    },
+  };
+  await loseGaslessAnswer();
+
+  const result = within(await screen.findByRole("alert"));
+  expect(result.getByText("The swap did not go through")).toBeTruthy();
+  // Two pages listed; the transactions older than the send were not read.
+  expect(listed).toBe(2);
+  expect(read).toBe(20);
+});
+
+test("B4-005-S3: a wallet with five full pages of newer transactions stops there and stays unconfirmed", async () => {
+  let listed = 0;
+  rpcReply = {
+    getBlockHeight: () => 151,
+    getSignaturesForAddress: () => {
+      listed += 1;
+      return newerPage();
+    },
+    getTransaction: () => chainTransaction([OTHER_TX]),
+  };
+  await loseGaslessAnswer();
+
+  const result = within(await screen.findByRole("alert"));
+  expect(result.getByText("We could not confirm the result")).toBeTruthy();
+  expect(result.getByRole("button", { name: "Check again" })).toBeTruthy();
+  expect(screen.queryByText("The swap did not go through")).toBeNull();
+  expect(listed).toBe(5);
 });

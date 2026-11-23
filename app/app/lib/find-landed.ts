@@ -17,19 +17,24 @@ export type Lookup =
   | { kind: "notLanded" }
   | { kind: "unknown" };
 
-/** How many of the wallet's newest transactions are searched. */
-const RECENT = 20;
+/** How many of the wallet's transactions one page of the search lists. */
+const PAGE = 20;
+/** The most pages one search reads, so a busy wallet cannot flood the RPC. */
+const MAX_PAGES = 5;
+/** Seconds of margin between this clock and the chain's. */
+const CLOCK_MARGIN = 60;
 
 /**
  * Finds a swap whose transaction ID the page never had. On a gasless order
  * the fee payer signs inside Jupiter's /execute, so the ID (the fee payer's
  * signature) is unknown here, but the wallet's own signature is in the
- * transaction. Search the wallet's newest transactions for it.
+ * transaction. Search the wallet's transactions for it, newest first, paging
+ * back until one is older than the send (`sentAt`, Unix seconds).
  *
  * Not found is only final when the search was complete and the chain is past
  * the order's last valid block height: after that it can no longer land.
- * "Complete" means every transaction read cleanly and the oldest one searched
- * is from before the swap was sent (`sentAt`, Unix seconds).
+ * "Complete" means every transaction since the send read cleanly and the
+ * search reached back past the send within `MAX_PAGES`.
  */
 export async function findLanded(
   rpc: LookupRpc,
@@ -45,44 +50,53 @@ export async function findLanded(
       lastValidBlockHeight === undefined
         ? undefined
         : await rpc.getBlockHeight({ commitment: "confirmed" }).send();
-    const recent = await rpc
-      .getSignaturesForAddress(taker, {
-        limit: RECENT,
-        commitment: "confirmed",
-      })
-      .send();
+    const cutoff = sentAt - CLOCK_MARGIN;
     let complete = true;
-    for (const entry of recent) {
-      const transaction = await rpc
-        .getTransaction(entry.signature as Signature, {
+    let reachesBack = false;
+    let before: Signature | undefined;
+    for (let page = 0; page < MAX_PAGES && !reachesBack; page++) {
+      const entries = await rpc
+        .getSignaturesForAddress(taker, {
+          limit: PAGE,
           commitment: "confirmed",
-          encoding: "json",
-          // A gasless order is never a version 1 transaction (Jupiter's spec).
-          maxSupportedTransactionVersion: 0,
+          ...(before ? { before } : {}),
         })
-        .send()
-        .catch(() => null);
-      if (!transaction) {
-        complete = false;
-        continue;
+        .send();
+      for (const entry of entries) {
+        // Older than the send: it cannot be this swap, and nothing older can.
+        if (entry.blockTime != null && Number(entry.blockTime) < cutoff) {
+          reachesBack = true;
+          break;
+        }
+        const transaction = await rpc
+          .getTransaction(entry.signature as Signature, {
+            commitment: "confirmed",
+            encoding: "json",
+            // A gasless order is never a version 1 transaction (Jupiter's spec).
+            maxSupportedTransactionVersion: 0,
+          })
+          .send()
+          .catch(() => null);
+        if (!transaction) {
+          complete = false;
+          continue;
+        }
+        if (
+          transaction.transaction.signatures.includes(takerSignature as never)
+        ) {
+          return {
+            kind: "landed",
+            signature: entry.signature,
+            succeeded: transaction.meta
+              ? transaction.meta.err === null
+              : undefined,
+          };
+        }
       }
-      if (
-        transaction.transaction.signatures.includes(takerSignature as never)
-      ) {
-        return {
-          kind: "landed",
-          signature: entry.signature,
-          succeeded: transaction.meta
-            ? transaction.meta.err === null
-            : undefined,
-        };
-      }
+      // A short page is the end of the wallet's history.
+      if (entries.length < PAGE) reachesBack = true;
+      before = entries.at(-1)?.signature as Signature | undefined;
     }
-    const oldest = recent.at(-1);
-    // A minute of margin for the difference between this clock and the chain's.
-    const reachesBack =
-      recent.length < RECENT ||
-      (oldest?.blockTime != null && Number(oldest.blockTime) < sentAt - 60);
     if (
       complete &&
       reachesBack &&

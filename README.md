@@ -4,7 +4,7 @@ A Next.js page that gets a live price from Jupiter, has the trader's wallet sign
 
 This is Deed #4 of The Solana Deeds, a series of one-day learning builds. [Read the write-up](https://reddi.tech/blog/solana-b4-jupiter-swap) and [watch the demo](https://youtu.be/gBrxAh3iwLk).
 
-This is a source snapshot of `f7660d5f4a4c28ef4c19951207a3a85ddfc4f9af`; the first snapshot was of `bc57186c50fa5f678c6ea2f394d5fa65c03f1b70`. The private build journal, issue history and evidence files are not part of this repository.
+This is a source snapshot of `8076586214a23b21d5bdf3deb879c0d9bb5735e6`; earlier snapshots were of `bc57186c50fa5f678c6ea2f394d5fa65c03f1b70` and `f7660d5f4a4c28ef4c19951207a3a85ddfc4f9af`. The private build journal, issue history and evidence files are not part of this repository.
 
 ## Run it
 
@@ -15,7 +15,7 @@ mise install
 cd app
 export PATH="$(mise where node)/bin:$(mise where pnpm):$PATH"
 pnpm install --frozen-lockfile
-pnpm run ci                        # build, typecheck, lint, format check, 53 tests
+pnpm run ci                        # build, typecheck, lint, format check, 56 tests
 JUPITER_API_KEY=... pnpm dev       # http://localhost:3000
 ```
 
@@ -46,7 +46,7 @@ sequenceDiagram
 - `app/app/api/jupiter/` and `app/app/lib/jupiter-server.ts`: two server routes that hold the key, accept only five listed tokens, whole-number amounts, slippage from 1 to 1000 basis points and a valid wallet address, and forward to Jupiter Swap API v2 (`/order` and `/execute`).
 - `app/app/lib/hooks/use-quote.ts`: a quote that refreshes every 10 seconds and is withdrawn after 30 seconds without a refresh.
 - `app/app/lib/hooks/use-swap.ts`: fresh order, one wallet signature, execute. If the answer is lost after signing, it asks again about the same signed transaction and never signs twice.
-- `app/app/lib/find-landed.ts`: for a gasless order, where the fee payer signs inside `/execute` and the page never has the transaction ID. If the answer is lost, it searches the wallet's 20 newest transactions for one carrying the wallet's own signature. It reports "did not go through" only when every transaction was read and the chain is past the order's last valid block height; anything less certain stays "not confirmed". Added after [a reply on X](https://x.com/0xeddiekim/status/2124150538074005509) pointed out the gap.
+- `app/app/lib/find-landed.ts`: for a gasless order, where the fee payer signs inside `/execute` and the page never has the transaction ID. If the answer is lost, it searches the wallet's transactions, newest first, for one carrying the wallet's own signature, paging back 20 at a time until it meets one older than the send, for at most five pages. It reports "did not go through" only when every transaction since the send was read and the chain is past the order's last valid block height; anything less certain, including reaching the five-page limit, stays "not confirmed". Added after [a reply on X](https://x.com/0xeddiekim/status/2124150538074005509) pointed out the gap, and paged after [a second](https://x.com/0xeddiekim/status/2124398971204534543).
 - `app/app/lib/jupiter.ts`: maps Jupiter's response codes to the outcomes the page names.
 
 `app/README.md` has the full file map.
@@ -63,7 +63,8 @@ sequenceDiagram
 - A learning build. No audit, no hosted deployment, no rate limiting beyond Jupiter's own.
 - The page asks the wallet to sign the transaction Jupiter returns without decoding it first. The wallet's preview is the check.
 - "Slippage exceeded" is recognised by Jupiter program error 6001 or the word "slippage" in the error. A venue that reports it another way shows as a generic failure with its code.
-- The balance in the header and the gasless search read the public mainnet RPC, which may refuse browser requests. A refused search leaves the swap "not confirmed". Swapping does not depend on the RPC.
+- The balance in the header and the gasless search read the public mainnet RPC, which may refuse or rate-limit browser requests. A refused search leaves the swap "not confirmed". Swapping does not depend on the RPC.
+- The gasless search stops after 100 of the wallet's transactions. A wallet that has made more than that since the swap stays "not confirmed".
 - A wallet that can only sign-and-send in one step is refused, because Jupiter's managed execution needs the signed transaction back.
 - The page does not check the trader's balance before quoting.
 
